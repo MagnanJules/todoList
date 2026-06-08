@@ -67,6 +67,12 @@ impl App {
             KeyCode::Esc => {
                 self.screen = Screen::List;
             }
+            KeyCode::Enter => {
+                self.todos.push(Todo {
+                    title: std::mem::take(&mut self.input.title),
+                    description: std::mem::take(&mut self.input.description),
+                });
+            }
             _ => {}
         }
     }
