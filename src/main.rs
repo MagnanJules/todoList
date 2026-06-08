@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crossterm::event::Event;
 use ratatui::{
     DefaultTerminal, Frame,
+    layout::{Constraint, Layout, Margin},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 use serde::{Deserialize, Serialize};
@@ -20,10 +21,55 @@ enum Screen {
     CreateTodo,
 }
 
+#[derive(PartialEq)]
+enum CreateTodoItemState {
+    Title,
+    Desc,
+}
+
+struct CreateTodoItem {
+    title: String,
+    description: String,
+    state: CreateTodoItemState,
+}
+
 struct App {
     todos: Vec<Todo>,
     selected: usize,
     screen: Screen,
+    input: CreateTodoItem,
+}
+
+impl App {
+    pub fn handle_create_todo_item_inputs(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Tab => {
+                if self.input.state == CreateTodoItemState::Title {
+                    self.input.state = CreateTodoItemState::Desc;
+                } else {
+                    self.input.state = CreateTodoItemState::Title;
+                }
+            }
+            KeyCode::Char(c) => {
+                if self.input.state == CreateTodoItemState::Title {
+                    self.input.title.push(c);
+                } else {
+                    self.input.description.push(c);
+                }
+            }
+            KeyCode::Backspace => {
+                if self.input.state == CreateTodoItemState::Title {
+                    self.input.title.pop();
+                } else {
+                    self.input.description.pop();
+                }
+            }
+            KeyCode::Esc => {
+                self.screen = Screen::List;
+            }
+            _ => {}
+        }
+    }
 }
 
 fn read_file(path: PathBuf) -> Vec<Todo> {
@@ -42,6 +88,11 @@ fn main() -> color_eyre::Result<()> {
         todos: todos,
         selected: 0,
         screen: Screen::List,
+        input: CreateTodoItem {
+            title: String::new(),
+            description: String::new(),
+            state: CreateTodoItemState::Title,
+        },
     };
     ratatui::run(|terminal| app(terminal, &mut app_state))?;
     Ok(())
@@ -54,16 +105,14 @@ fn app(terminal: &mut DefaultTerminal, app_state: &mut App) -> std::io::Result<(
             match app_state.screen {
                 Screen::List => match key.code {
                     KeyCode::Char('a') => app_state.screen = Screen::CreateTodo,
+                    KeyCode::Char('q') => break Ok(()),
                     _ => {}
                 },
                 Screen::CreateTodo => match key.code {
-                    _ => {}
+                    _ => {
+                        app_state.handle_create_todo_item_inputs(key.code);
+                    }
                 },
-                _ => {}
-            }
-            match key.code {
-                KeyCode::Char('q') => break Ok(()),
-                _ => {}
             }
         }
     }
@@ -73,7 +122,6 @@ fn render(frame: &mut Frame, app_state: &mut App) {
     match app_state.screen {
         Screen::List => render_list(frame, app_state),
         Screen::CreateTodo => render_create_todo(frame, app_state),
-        _ => {}
     }
 }
 
@@ -91,7 +139,7 @@ fn render_create_todo(frame: &mut Frame, app_state: &mut App) {
 
     let centered_area = frame.area().centered(
         ratatui::layout::Constraint::Percentage(60),
-        ratatui::layout::Constraint::Percentage(20),
+        ratatui::layout::Constraint::Percentage(40),
     );
 
     frame.render_widget(Clear, centered_area);
@@ -99,4 +147,26 @@ fn render_create_todo(frame: &mut Frame, app_state: &mut App) {
     let paragraph = Paragraph::new("test").block(popup_bloc);
 
     frame.render_widget(paragraph, centered_area);
+
+    let inner = centered_area.inner(Margin::new(1, 1));
+
+    let chunks = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(1),
+    ])
+    .split(inner);
+
+    let title_block = Block::bordered().title("Title");
+    let title_paragraph = Paragraph::new(app_state.input.title.as_str()).block(title_block);
+
+    frame.render_widget(title_paragraph, chunks[0]);
+
+    let desc_block = Block::bordered().title("Description");
+    let desc_paragraph = Paragraph::new(app_state.input.description.as_str()).block(desc_block);
+
+    frame.render_widget(desc_paragraph, chunks[1]);
+
+    let hints = Paragraph::new("Tab: change | Enter: validate | Esc: cancel ");
+    frame.render_widget(hints, chunks[2]);
 }
