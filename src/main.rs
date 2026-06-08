@@ -51,9 +51,18 @@ fn app(terminal: &mut DefaultTerminal, app_state: &mut App) -> std::io::Result<(
     loop {
         terminal.draw(|frame| render(frame, app_state))?;
         if let Event::Key(key) = crossterm::event::read()? {
+            match app_state.screen {
+                Screen::List => match key.code {
+                    KeyCode::Char('a') => app_state.screen = Screen::CreateTodo,
+                    _ => {}
+                },
+                Screen::CreateTodo => match key.code {
+                    _ => {}
+                },
+                _ => {}
+            }
             match key.code {
                 KeyCode::Char('q') => break Ok(()),
-                KeyCode::Char('a') => app_state.screen = Screen::CreateTodo,
                 _ => {}
             }
         }
