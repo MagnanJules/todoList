@@ -94,6 +94,20 @@ impl App {
         let todo_list: Vec<Todo> = serde_json::from_str(&content).unwrap();
         self.todos = todo_list;
     }
+
+    pub fn increment_index(&mut self) {
+        if self.selected >= self.todos.len() - 1 {
+            return;
+        }
+        self.selected += 1;
+    }
+
+    pub fn decrement_index(&mut self) {
+        if self.selected <= 0 {
+            return;
+        }
+        self.selected -= 1;
+    }
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -126,6 +140,8 @@ fn app(terminal: &mut DefaultTerminal, app_state: &mut App) -> std::io::Result<(
                         app_state.save_file();
                         break Ok(());
                     }
+                    KeyCode::Char('j') => app_state.increment_index(),
+                    KeyCode::Char('k') => app_state.decrement_index(),
                     _ => {}
                 },
                 Screen::CreateTodo => match key.code {
