@@ -5,7 +5,7 @@ use crossterm::event::Event;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout, Margin},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Clear, List, ListItem, Paragraph},
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -38,6 +38,7 @@ struct App {
     selected: usize,
     screen: Screen,
     input: CreateTodoItem,
+    path: PathBuf,
 }
 
 impl App {
@@ -76,22 +77,30 @@ impl App {
             _ => {}
         }
     }
-}
 
-fn read_file(path: PathBuf) -> Vec<Todo> {
-    if !path.exists() {
-        fs::write(&path, "[]").unwrap();
+    fn save_file(&mut self) {
+        if !self.path.exists() {
+            panic!("The file has never been created.");
+        }
+        let content = serde_json::to_string_pretty(&self.todos).unwrap();
+        fs::write(&mut self.path, content).unwrap();
     }
-    let content = fs::read_to_string(path).unwrap();
-    let todo_list: Vec<Todo> = serde_json::from_str(&content).unwrap();
-    return todo_list;
+
+    pub fn read_file(&mut self) {
+        if !self.path.exists() {
+            fs::write(&self.path, "[]").unwrap();
+        }
+        let content = fs::read_to_string(&mut self.path).unwrap();
+        let todo_list: Vec<Todo> = serde_json::from_str(&content).unwrap();
+        self.todos = todo_list;
+    }
 }
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    let todos = read_file(PathBuf::from("todos.json"));
+    let path = PathBuf::from("todos.json");
     let mut app_state = App {
-        todos: todos,
+        todos: vec![],
         selected: 0,
         screen: Screen::List,
         input: CreateTodoItem {
@@ -99,7 +108,9 @@ fn main() -> color_eyre::Result<()> {
             description: String::new(),
             state: CreateTodoItemState::Title,
         },
+        path: path,
     };
+    app_state.read_file();
     ratatui::run(|terminal| app(terminal, &mut app_state))?;
     Ok(())
 }
@@ -111,7 +122,10 @@ fn app(terminal: &mut DefaultTerminal, app_state: &mut App) -> std::io::Result<(
             match app_state.screen {
                 Screen::List => match key.code {
                     KeyCode::Char('a') => app_state.screen = Screen::CreateTodo,
-                    KeyCode::Char('q') => break Ok(()),
+                    KeyCode::Char('q') => {
+                        app_state.save_file();
+                        break Ok(());
+                    }
                     _ => {}
                 },
                 Screen::CreateTodo => match key.code {
